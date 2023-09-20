@@ -1,43 +1,66 @@
 package main
 
 import (
+	"crypto/rand"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
 )
+
+var memConsumed []byte
 
 func main() {
 	// Retrieve environment variables that may be set within the container.
-	ip := os.Getenv("IP")           // IP address of the container
-	pod := os.Getenv("POD")         // Name of the pod where the container is running
-	node := os.Getenv("NODE")       // Name of the node where the pod is scheduled
+	ip := os.Getenv("IP")               // IP address of the container
+	pod := os.Getenv("POD")             // Name of the pod where the container is running
+	node := os.Getenv("NODE")           // Name of the node where the pod is scheduled
 	namespace := os.Getenv("NAMESPACE") // Namespace where the pod is deployed
 
 	// Create a new Echo instance to handle HTTP requests.
 	e := echo.New()
-	
-	// Use CORS middleware to handle Cross-Origin Resource Sharing (CORS) headers.
-	e.Use(middleware.CORS())
-	
-	// Define a route for handling incoming HTTP GET requests.
+
+	// Define a route for handling incoming HTTP GET requests on the root ("/") path.
 	e.GET("/", func(c echo.Context) error {
-		// Create a response map containing some information about the container and its environment.
-		res := map[string]interface{}{
-			"message":   "Hello from backend version v1.0.0",
-			"timestamp": time.Now().UTC().Format(time.RFC3339),
-			"ip":        ip,
-			"pod":       pod,
-			"node":      node,
-			"namespace": namespace,
+		// Create a response message containing the information about the container and its environment.
+		response := "Timestamp: " + time.Now().UTC().Format(time.RFC3339) + "\n" +
+			"IP: " + ip + "\n" +
+			"Pod: " + pod + "\n" +
+			"Node: " + node + "\n" +
+			"Namespace: " + namespace
+
+		// Return the response as plain text with a 200 OK status.
+		return c.String(http.StatusOK, response)
+	})
+
+	// Define a route for the "stress" endpoint.
+	e.GET("/stress", func(c echo.Context) error {
+		// Check if memory has already been consumed.
+		if memConsumed != nil {
+			return c.String(http.StatusOK, "RAM stress test is already running.")
 		}
 
-		// Return the response map as a JSON response with a 200 OK status.
-		return c.JSON(http.StatusOK, res)
+		// Define the target memory size in bytes (1 GB).
+		const targetSize = 1024 * 1024 * 1024 // 1 GB
+
+		// Allocate memory for the entire 1 GB.
+		memConsumed = make([]byte, targetSize)
+
+		// Fill the allocated memory with random data.
+		rand.Read(memConsumed)
+
+		// Return a response indicating that RAM has been consumed.
+		return c.String(http.StatusOK, "RAM stress test initiated.")
 	})
-	
+
+	// Define a route for the "kill" endpoint.
+	e.GET("/kill", func(c echo.Context) error {
+		// Terminate the server immediately.
+		os.Exit(0)
+		return nil
+	})
+
 	// Start the Echo web server on port 8080 and handle incoming HTTP requests.
 	e.Logger.Fatal(e.Start(":8080"))
 }
