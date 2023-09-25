@@ -51,14 +51,22 @@ func main() {
 		rand.Read(memConsumed)
 
 		// Return a response indicating that RAM has been consumed.
-		return c.String(http.StatusOK, "RAM stress test initiated.")
+    return c.String(http.StatusOK, "RAM stress test initiated on Pod: "+pod)
 	})
+
 
 	// Define a route for the "kill" endpoint.
 	e.GET("/kill", func(c echo.Context) error {
-		// Terminate the server immediately.
-		os.Exit(0)
-		return nil
+        // Return a message indicating that the server will be terminated, including the pod name.
+        response := "Server in Pod: " + pod + " will be terminated."
+
+        // Start a goroutine to allow the response to be sent before termination.
+        go func() {
+            time.Sleep(1 * time.Second) // Give some time for the response to be sent
+            os.Exit(0) // Terminate the server after a delay
+        }()
+
+        return c.String(http.StatusOK, response)
 	})
 
 	// Start the Echo web server on port 8080 and handle incoming HTTP requests.
