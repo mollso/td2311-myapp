@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/rand"
+	"html/template"
 	"net/http"
 	"os"
 	"time"
@@ -10,6 +11,16 @@ import (
 )
 
 var memConsumed []byte
+
+// TemplateData struct for HTML template
+type TemplateData struct {
+	Timestamp  string
+	IP         string
+	Pod        string
+	Node       string
+	Namespace  string
+	PageHeader string
+}
 
 func main() {
 	// Retrieve environment variables that may be set within the container.
@@ -21,17 +32,52 @@ func main() {
 	// Create a new Echo instance to handle HTTP requests.
 	e := echo.New()
 
-	// Define a route for handling incoming HTTP GET requests on the root ("/") path.
-	e.GET("/", func(c echo.Context) error {
-		// Create a response message containing the information about the container and its environment.
-		response := "Timestamp: " + time.Now().UTC().Format(time.RFC3339) + "\n" +
-			"IP: " + ip + "\n" +
-			"Pod: " + pod + "\n" +
-			"Node: " + node + "\n" +
-			"Namespace: " + namespace
+	// Define a template with the specified HTML content.
+	tpl := `
+	<!DOCTYPE html>
+	<html>
+	<head>
+		<title>{{.PageHeader}}</title>
+		<style>
+			body {
+				background-color: #22c55e; /* Green background */
+				font-family: Arial, sans-serif;
+			}
+			.container {
+				margin: 20px;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="container">
+			<h1>{{.PageHeader}}</h1>
+			<p>Timestamp: {{.Timestamp}}</p>
+			<p>IP: {{.IP}}</p>
+			<p>Pod: {{.Pod}}</p>
+			<p>Node: {{.Node}}</p>
+			<p>Namespace: {{.Namespace}}</p>
+		</div>
+	</body>
+	</html>
+	`
 
-		// Return the response as plain text with a 200 OK status.
-		return c.String(http.StatusOK, response)
+	// Parse the HTML template.
+	htmlTemplate := template.Must(template.New("htmlTemplate").Parse(tpl))
+
+	// Define a route for handling incoming HTTP GET requests on all paths.
+	e.GET("/*", func(c echo.Context) error {
+		// Create a TemplateData instance with the information about the container and its environment.
+		data := TemplateData{
+			Timestamp:  time.Now().UTC().Format(time.RFC3339),
+			IP:         ip,
+			Pod:        pod,
+			Node:       node,
+			Namespace:  namespace,
+			PageHeader: "Container Information V1",
+		}
+
+		// Render the HTML template with the provided data.
+		return htmlTemplate.Execute(c.Response().Writer, data)
 	})
 
 	// Define a route for the "stress" endpoint.
